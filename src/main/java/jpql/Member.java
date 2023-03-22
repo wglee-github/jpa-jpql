@@ -1,6 +1,7 @@
 package jpql;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -18,10 +19,36 @@ public class Member {
 	
 	private int age;
 
-	@ManyToOne()
+	/**
+	 * @ManyToOne 의 fetch default는 EAGER 이다.
+	 */
+	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "TEAM_ID")
 	private Team team;
 	
+	
+	
+	public Member() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
+	public Member(String name, int age) {
+		super();
+		this.name = name;
+		this.age = age;
+	}
+
+	/**
+	 * 
+	 * @param team
+	 * 
+	 * 양방향 연관관계 편의 메소드
+	 */
+	public void changeTeam(Team team) {
+		this.team = team;
+		team.getMembers().add(this);
+	}
 	
 	public Long getId() {
 		return id;
@@ -60,8 +87,13 @@ public class Member {
 		return team;
 	}
 
-	public void setTeam(Team team) {
+	private void setTeam(Team team) {
 		this.team = team;
+	}
+
+	@Override
+	public String toString() {
+		return "Member [id=" + id + ", name=" + name + ", age=" + age + "]";
 	}
 	
 }
