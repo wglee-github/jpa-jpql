@@ -29,23 +29,432 @@ import jakarta.persistence.TypedQuery;
 public class JpaMainJpql {
 
 	public static void main(String[] args) {
-		서브쿼리();
+		기본함수();
 	}
 	
 	
-/**
- * 
- * 
- 	서브 쿼리 지원 함수
-	• [NOT] EXISTS (subquery): 서브쿼리에 결과가 존재하면 참
-	
-	• {ALL | ANY | SOME} (subquery)
-		• ALL 모두 만족하면 참
-		• ANY, SOME: 같은 의미, 조건을 하나라도 만족하면 참
+	/**
+	 * 
+	 * 
+	 	사용자 정의 함수 호출
+	• 하이버네이트는 사용전 방언에 추가해야 한다.
+	• 사용하는 DB 방언을 상속받고, 사용자 정의 함수를 등록한다.
+		- select function('group_concat', i.name) from Item i
 		
-	• [NOT] IN (subquery): 서브쿼리의 결과 중 하나라도 같은 것이 있으면 참
+		
+		hibernate 버전에 따라 강의 영상대로 실행되지 않음.
 
- */
+	 */
+	public static void 사용자정의함수() {
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team = new Team();
+			team.setName("teamA");
+			em.persist(team);
+			
+			Team team1 = new Team();
+			team1.setName("teamB");
+			em.persist(team1);
+			
+			
+			Member member = new Member("member1",10);
+			member.setType(MemberType.ADMIN);
+			member.changeTeam(team);
+			em.persist(member);
+			
+			Member member2 = new Member("member2",70);
+			member2.setType(MemberType.USER);
+			member2.changeTeam(team1);
+			em.persist(member2);
+			
+			
+			
+			em.flush();
+			em.clear();
+			
+			String query1 = "select function('group_concat', m.name) from Member m";
+			
+			List<String> strings1 =  em.createQuery(query1, String.class).getResultList();
+			
+			for (String s : strings1) {
+				System.out.println("strings1 : " + s);
+			}
+			
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+	}
+	
+	
+	/**
+	 * 
+	 * 
+	 	JPQL 기본 함수
+		• CONCAT
+		• SUBSTRING
+		• TRIM
+		• LOWER, UPPER
+		• LENGTH
+		• LOCATE
+		• ABS, SQRT, MOD
+		• SIZE, INDEX(JPA 용도)
+	 */
+	public static void 기본함수() {
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team = new Team();
+			team.setName("teamA");
+			em.persist(team);
+			
+			Team team1 = new Team();
+			team1.setName("teamB");
+			em.persist(team1);
+			
+			
+			Member member = new Member("member1",10);
+			member.setType(MemberType.ADMIN);
+			member.changeTeam(team);
+			em.persist(member);
+			
+			Member member2 = new Member("member2",70);
+			member2.setType(MemberType.USER);
+			member2.changeTeam(team1);
+			em.persist(member2);
+			
+			
+			
+			em.flush();
+			em.clear();
+			
+			String query1 = "select SIZE(t.members) from Team t";
+			
+			List<Integer> strings1 =  em.createQuery(query1, Integer.class).getResultList();
+			
+			for (Integer s : strings1) {
+				System.out.println("strings1 : " + s);
+			}
+			
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+	}
+	
+	
+	/**
+	 * 
+	 * 1. 일반 CASE 식
+	 * 2. 단순 CASE 식
+	 * 3. COALESCE : 하나씩 조회해서 null이 아니면 반환
+	 * 4. NULLIF : 두 값이 같으면 null 반환, 다르면 첫번째 값 반환
+	 * 
+	 */
+	public static void 조건식_CASE() {
+		
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team = new Team();
+			team.setName("teamA");
+			em.persist(team);
+			
+			Team team1 = new Team();
+			team1.setName("teamB");
+			em.persist(team1);
+			
+			
+			Member member = new Member("member1",10);
+			member.setType(MemberType.ADMIN);
+			member.changeTeam(team);
+			em.persist(member);
+			
+			Member member2 = new Member("member2",70);
+			member2.setType(MemberType.USER);
+			member2.changeTeam(team1);
+			em.persist(member2);
+			
+			
+			
+			em.flush();
+			em.clear();
+			
+			/**
+			 * 1, 기본 CASE 식
+			 * 
+			 *  추가. 스칼라 타입인데 객체가 포함된 경우.
+			 * - case when 으로 alias 하나 조회하고, Member 객체도 전체 조회한 경우
+			 */
+			String query = "select "
+					+"case when m.age <= 10 then '학생요금' "
+					+"when m.age >= 60 then '경로요금' "
+					+"else '일반요금' end  as count, m "
+					+"from Member m";
+			
+			List<Object[]> objectList =  em.createQuery(query).getResultList();
+			
+			for (Object[] objectArr : objectList) {
+				for (Object object : objectArr) {
+					System.out.println("strings : " + object);
+					
+					// Member 객체인 경우 Member 객체로 캐스팅
+					if(object instanceof Member) {
+						Member m = (Member)object;
+						System.out.println(m.getAge());
+						System.out.println(m.getName());
+						System.out.println(m.getTeam().getName());
+					}
+				}
+			}
+			
+			
+			/**
+			 * 2. 단순 CASE 식
+			 */
+			String query1 = "select "
+					+"case t.name "
+					+"		when 'teamA' then '인센티브110%' "
+					+"		when 'teamB' then '인센티브150%' "
+					+"		else '인센티브 없음' end "
+					+"from Team t";
+			
+			List<String> strings =  em.createQuery(query1, String.class).getResultList();
+			
+			for (String s : strings) {
+				System.out.println("strings : " + s);
+			}
+			
+			/**
+			 * 
+			 
+			 	3. COALESCE  
+			 		- 첫번째 인자에 비교할 식별자를 하나씩 비교해서 null이 아니면 첫번째 인자 값 반환하고, Null 이면 두번째 인자 값 반환한다.
+				 	- COALESCE(m.name, '이름 없는 회원')
+			    
+			 */
+			String query2 = "select COALESCE(m.name, '이름 없는 회원') from Member m";
+			
+			List<String> strings2 =  em.createQuery(query2, String.class).getResultList();
+			
+			for (String s : strings2) {
+				System.out.println("strings2 : " + s);
+			}
+			
+			
+			/**
+			 * 
+			 
+			 	 4. NULLIF
+			 	 	- 첫번째 인자에 비교할 식별자를 넣고, 두번째 인자에 첫번째 인자와 비교할 값을 넣은 후 두 값이 같으면 null 반환, 다르면 첫번째 인자 값 반환
+			   
+			 */
+			String query3 = "select NULLIF(m.name, 'member1') from Member m";
+			
+			List<String> strings3 =  em.createQuery(query3, String.class).getResultList();
+			
+			for (String s : strings3) {
+				System.out.println("strings3 : " + s);
+			}
+			
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+		
+	}
+	
+	/**
+	 * 
+	 * 
+	 	JPQL 타입 표현
+		• 문자: ‘HELLO’, ‘She’’s’
+		• 숫자: 10L(Long), 10D(Double), 10F(Float)
+		• Boolean: TRUE, FALSE
+		• ENUM: jpql.MemberType.Admin (패키지명 포함)
+		• 엔티티 타입: TYPE(m) = Member (상속 관계에서 사용)
+
+		JPQL 기타
+		• SQL과 문법이 같은 식
+		• EXISTS, IN
+		• AND, OR, NOT
+		• =, >, >=, <, <=, <>
+		• BETWEEN, LIKE, IS NULL
+
+	 */
+	public static void 타입표현() {
+		
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team = new Team();
+			team.setName("teamA");
+			em.persist(team);
+			
+			
+			Member member = new Member("member1",10);
+			member.setType(MemberType.ADMIN);
+			member.changeTeam(team);
+			em.persist(member);
+			
+			
+			
+			em.flush();
+			em.clear();
+			
+			// enum을 사용하는 경우 하드코딩 하는 경우 패키지 명을 다 넣어야 한다.
+			String query1 = "select m.name, 'HELLO', true from Member m"
+					+ " where m.type = jpql.MemberType.ADMIN";
+			
+			// enum 부분을 하드코딩 하지 않고 파라미터 바인딩으로 처리
+			String query2 = "select m.name, 'HELLO', true from Member m"
+					+ " where m.type = :type";
+			List<Object[]> resultList = em.createQuery(query2)
+					.setParameter("type", MemberType.ADMIN)
+					.getResultList();
+			
+			for (Object[] objectArr : resultList) {
+				System.out.println("objects : " + objectArr[0]);
+				System.out.println("objects : " + objectArr[1]);
+				System.out.println("objects : " + objectArr[2]);
+			}
+			
+//			for (Object[] objectArr : resultList) {
+//				for (Object o : objectArr) {
+//					System.out.println("objects : " + o);
+//				}
+//			}
+			
+			
+			Book book = new Book();
+			book.setName("Funny");
+			book.setStore("경기");
+			em.persist(book);
+			
+			/**
+			 * 상속관계에서 where 조건에 type(부모객체) = 자식객체 이와같이 넣어주면
+			 * 여러 자식 객체 중 맵핑 된 자식객체를 조회해 온다. 
+			 */
+			List<Book> books = em.createQuery("select i from Item i where type(i) = Book", Book.class)
+				.getResultList();
+			
+			for (Book item : books) {
+				System.out.println("item book : " + item.getName());
+				System.out.println("item book : " + item.getStore());
+			}
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+		
+	}
+	
+	
+	/**
+	 * 
+	 * 
+	 	서브 쿼리 지원 함수
+		• [NOT] EXISTS (subquery): 서브쿼리에 결과가 존재하면 참
+		
+		• {ALL | ANY | SOME} (subquery)
+			• ALL 모두 만족하면 참
+			• ANY, SOME: 같은 의미, 조건을 하나라도 만족하면 참
+			
+		• [NOT] IN (subquery): 서브쿼리의 결과 중 하나라도 같은 것이 있으면 참
+	
+	 */
 	public static void 서브쿼리() {
 		/**
 		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
@@ -167,8 +576,6 @@ public class JpaMainJpql {
 		}
 		
 		emf.close();
-		
-		
 		
 	}
 	

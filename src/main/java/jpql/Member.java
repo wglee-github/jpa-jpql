@@ -1,6 +1,8 @@
 package jpql;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -26,7 +28,8 @@ public class Member {
 	@JoinColumn(name = "TEAM_ID")
 	private Team team;
 	
-	
+	@Enumerated(EnumType.STRING)
+	private MemberType type;
 	
 	public Member() {
 		super();
@@ -89,6 +92,14 @@ public class Member {
 
 	private void setTeam(Team team) {
 		this.team = team;
+	}
+
+	public MemberType getType() {
+		return type;
+	}
+
+	public void setType(MemberType type) {
+		this.type = type;
 	}
 
 	@Override
