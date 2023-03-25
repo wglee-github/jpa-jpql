@@ -24,7 +24,7 @@ public class Member {
 	/**
 	 * @ManyToOne 의 fetch default는 EAGER 이다.
 	 */
-	@ManyToOne(fetch = FetchType.EAGER)
+	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "TEAM_ID")
 	private Team team;
 	
