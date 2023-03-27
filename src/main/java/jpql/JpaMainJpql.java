@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
@@ -31,7 +33,196 @@ import jakarta.persistence.TypedQuery;
 public class JpaMainJpql {
 
 	public static void main(String[] args) {
-		엔티티패치조인();
+		패치조인한계();
+	}
+	
+	
+	/**
+	 * 
+	 * 
+	 	* 페치 조인의 특징과 한계
+			• 페치 조인 대상에는 별칭을 줄 수 없다. 
+				• 하이버네이트는 가능, 가급적 사용X
+			
+			• 둘 이상의 컬렉션은 페치 조인 할 수 없다. 
+				•주 객체 안에 참조 컬력션 객체가 있고, 참조 컬력션 객체 안에 또 참조 컬렉션 객체가 있는 경우, 이들을 모두 조인하는 짓은 하지 말자.
+					- 데이터가 잘 맞지 않는다. 
+				EX. select t from Team t join fetch t.members m join fetch m.orders
+			
+			• 컬렉션을 페치 조인하면 페이징 API(setFirstResult, setMaxResults)를 사용할 수 없다. 
+				• 일대일, 다대일 같은 단일 값 연관 필드들은 페치 조인해도 페이징 가능
+				•	일대다, 다대다 같은 경우 페이지 되지 않는다.
+					• 하이버네이트는 경고 로그를 남기고 메모리에서 페이징(매우 위험)
+					- WARN: HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+
+			• JPA 설계 사상은 객체 그래프를 탐색한다는 건데, 이는 참조된 객체의 정보는 모두 조회한다라는 가정하고 설계가 되었다.
+				그런데 패치 조인 대상에 별칭을 준 후 조건을 건다는건 부작용을 낳게 된다. 이상 동작이 생길 수 있는 리스크가 있다.
+				Ex. "select t from Team t join fetch t.members m where m.name = '회원1'"
+				
+				
+				
+		* 페치 조인의 특징
+			• 연관된 엔티티들을 SQL 한 번으로 조회가 가능하다. - 성능 최적화
+			
+			• 엔티티에 직접 적용하는 글로벌 로딩 전략보다 우선한다.
+				• @OneToMany(fetch = FetchType.LAZY) // 글로벌 로딩 전략
+			
+			• 실무에서 글로벌 로딩 전략은 모두 지연 로딩을 적용하고 최적화가 필요한 곳은 페치 조인 적용하는것이 좋다.
+
+
+
+	 	* 페치 조인 - 정리
+			• 모든 것을 페치 조인으로 해결할 수 는 없음
+			
+			• 페치 조인은 객체 그래프를 유지할 때 사용하면 효과적
+				• 객체 그래프는 참조된 모든 정보를 조회 한다.
+			
+			• 여러 테이블을 조인해서 엔티티가 가진 모양이 아닌 전혀 다른 결과를 내야 하면, 
+				페치 조인 보다는 일반 조인을 사용하고 필요한 데이터들만 조회해서 DTO로 반환하는 것이 효과적
+
+				
+	 */
+	public static void 패치조인한계() {
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team teamA = new Team();
+			teamA.setName("팀A");
+			em.persist(teamA);
+			
+			Team teamB = new Team();
+			teamB.setName("팀B");
+			em.persist(teamB);
+			
+			
+			Member member1 = new Member("회원1",10);
+			member1.setType(MemberType.ADMIN);
+			member1.changeTeam(teamA);
+			em.persist(member1);
+			
+			Member member2 = new Member("회원2",70);
+			member2.setType(MemberType.USER);
+			member2.changeTeam(teamA);
+			em.persist(member2);
+			
+			Member member3 = new Member("회원3",70);
+			member3.setType(MemberType.USER);
+			member3.changeTeam(teamB);
+			em.persist(member3);
+			
+			
+			
+			em.flush();
+			em.clear();
+			
+			/**
+			 * • 페치 조인 대상에는 별칭을 줄 수 없다. 
+					• 하이버네이트는 가능, 가급적 사용X
+			 */
+//			String query1 = "select t from Team t join fetch t.members m where m.name = '회원1'";
+//			
+//			List<Team> teams =  em.createQuery(query1, Team.class).getResultList();
+//			
+//			System.out.println(" team size : " + teams.size());
+//			
+//			for (Team t : teams) {
+//				System.out.println("Team : " + t.getName() + " / Team 회원 수 : " + t.getMembers().size());
+//				
+//				for (Member m : t.getMembers()) {
+//					System.out.println("-> Member : " + m);
+//				}
+//			}
+			
+			/**
+			 * 
+ 				• 컬렉션을 페치 조인하면 페이징 API(setFirstResult, setMaxResults)를 사용할 수 없다. 
+					• 일대일, 다대일 같은 단일 값 연관 필드들은 페치 조인해도 페이징 가능
+					•	일대다, 다대다 같은 경우 페이지 되지 않는다.
+						• 하이버네이트는 경고 로그를 남기고 메모리에서 페이징(매우 위험)
+						- WARN: HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+						- 실제 페이징 쿼리가 만들어지지 않는다.
+			 * 
+			 */
+//			String query2 = "select t from Team t join fetch t.members m";
+//			
+//			List<Team> teams1 =  em.createQuery(query2, Team.class)
+//					.setFirstResult(0)
+//					.setMaxResults(1)
+//					.getResultList();
+//			
+//			System.out.println(" team size : " + teams1.size());
+//			
+//			for (Team t : teams1) {
+//				System.out.println("Team : " + t.getName() + " / Team 회원 수 : " + t.getMembers().size());
+//				
+//				for (Member m : t.getMembers()) {
+//					System.out.println("-> Member : " + m);
+//				}
+//			}
+			
+			/**
+			 * 컬렉션을 페치 조인하면 페이징 API 문제 해결 방법
+			 * 
+			 * 1. 조인 없이 참조 컬렉션 객체를 가지고 있는 객체 단일 조회
+			 * 2. 그러면 N +1 문제가 발생한다. 그래서 이를 해결하기 위해 fetch 조인을 사용하면 되는데 
+			 * 	문제는 컬렉션을 페치 조인하면 페이징 먹지 않기 때문에 
+			 * 	이때 참조 컬렉션 필드 위에 @BatchSize(size = 100) 선언하여 해결한다. 
+			 * 
+			 * 참조 컬렉션 필드 위에 @BatchSize(size = 100) 선언 
+			 * - 컬렉션 객체를 사이즈 만큼 한번에 IN 조건으로 조회한다.
+			 * 
+			
+			 * global 옵션은 persistence.xml에 선언하면 된다.
+			 	* <property name="hibernate.default_batch_fetch_size" value="100"/>
+			 	
+			 * 
+			 */
+			// 1. 단일 객체 조회 : 여기서는 페이징 잘 된다.
+			String query3 = "select t from Team t";
+			
+			List<Team> teams2 =  em.createQuery(query3, Team.class)
+					.setFirstResult(0)
+					.setMaxResults(10)
+					.getResultList();
+			
+			System.out.println(" team size : " + teams2.size());
+			
+			// 2. 여기서 N+1 문제 발생. 그래서 Team 객체 안에 members 컬렉션 위에 @BatchSize(size = 100) 선언.
+			for (Team t : teams2) {
+				System.out.println("Team : " + t.getName() + " / Team 회원 수 : " + t.getMembers().size());
+				
+				for (Member m : t.getMembers()) {
+					System.out.println("-> Member : " + m);
+				}
+			}
+			
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
 	}
 	
 	
