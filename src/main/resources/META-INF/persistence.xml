@@ -6,6 +6,8 @@
              version="3.0">
 
     <persistence-unit name="hello">
+    	<mapping-file>META-INF/ormMember.xml</mapping-file>
+    
         <properties>
 
             <!-- 필수 속성 -->
@@ -37,6 +39,10 @@
             ex) lastModifiedDate -> last_modified_date -->
             <!-- <property name="hibernate.ejb.naming_strategy" value="org.hibernate.cfg.ImprovedNamingStrategy"/> -->
             
+            <!-- N +1 문제를 해결하기 위해 fetch 조인을 사용하는데 문제는 컬렉션을 페치 조인하면 페이징 먹지 않는다. 
+			 	그래서 이때 fetch_size 설정을 통해 해결할 수 있다.
+			 	컬렉션 객체를 아래 설정한 사이즈 만큼 한번에 IN 조건으로 조회한다. 100으로 설정하면 100개가 IN으로 조회된다. -->
+            <property name="hibernate.default_batch_fetch_size" value="100"/>
         </properties>
     </persistence-unit>
 </persistence>

@@ -8,8 +8,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.NamedQuery;
 
 @Entity
+//@NamedQuery(
+//		name = "Member.findByUsername",
+//		query = "select m from Member m where m.name = :name")
 public class Member {
 
 	@Id @GeneratedValue
@@ -33,7 +37,6 @@ public class Member {
 	
 	public Member() {
 		super();
-		// TODO Auto-generated constructor stub
 	}
 
 	public Member(String name, int age) {

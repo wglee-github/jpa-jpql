@@ -10,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.NamedQuery;
 import jakarta.persistence.Persistence;
 import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
@@ -33,7 +34,447 @@ import jakarta.persistence.TypedQuery;
 public class JpaMainJpql {
 
 	public static void main(String[] args) {
-		패치조인한계();
+		벌크연산();
+	}
+	
+	
+	/**
+	 * 
+	 
+	 	* 벌크 연산 : 여러건의 데이터를 한번에 수정하는 것
+			• 재고가 10개 미만인 모든 상품의 가격을 10% 상승하게 하려면 어떻게 해야 할까?
+			
+			• JPA 변경 감지 기능으로 실행하려면 너무 많은 SQL 실행해야 한다.
+				 1. 재고가 10개 미만인 상품을 리스트로 조회한다.
+				 2. 상품 엔티티의 가격을 10% 증가한다.
+				 3. 트랜잭션 커밋 시점에 변경감지가 동작한다.
+			
+			• 변경된 데이터가 100건이라면 100번의 UPDATE SQL 실행한다.
+
+
+	 	* 벌크 연산 예제
+			• 쿼리 한 번으로 여러 테이블 로우 변경(엔티티)할 수 있다.
+			• executeUpdate()의 결과는 영향받은 엔티티 수를 반환한다.
+			• JAP는 UPDATE, DELETE 지원한다.
+			• INSERT(insert into .. select, 하이버네이트 지원)
+
+	 	* 벌크 연산 주의
+			• 벌크 연산은 영속성 컨텍스트를 무시하고 데이터베이스에 직접 쿼리한다.
+			• 이로인해 실제 영속성 컨텍스트의 내용은 변경이 되지 않는 문제가 발생한다. 
+			• 문제 해결 방법
+				• 영속성 컨텍스트에 저장하는 로직 보다 벌크 연산을 먼저 실행
+				• 벌크 연산 수행 후 영속성 컨텍스트 초기화
+	 */
+	public static void 벌크연산() {
+		
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team1 = new Team();
+			team1.setName("팀A");
+			em.persist(team1);
+			
+			Team team2 = new Team();
+			team2.setName("팀B");
+			em.persist(team2);
+			
+			Member member1 = new Member();
+			member1.setName("회원1");
+			member1.setAge(0);
+			member1.changeTeam(team1);
+			em.persist(member1);
+			
+			Member member2 = new Member();
+			member2.setName("회원2");
+			member2.setAge(0);
+			member2.changeTeam(team2);
+			em.persist(member2);
+			
+			Member member3 = new Member();
+			member3.setName("회원3");
+			member3.setAge(0);
+			member3.changeTeam(team2);
+			em.persist(member3);
+			
+			// 회원의 나이를 20으로 일괄 변경해라.
+			String query = "update Member m set m.age = 20 ";
+			
+			/**
+			 * 
+			 * createQuery()가 실행되면 flush()가 실행 되고, update 쿼리를 날리게 된다.
+			 * 이때 update 쿼리 실해은 영속성 컨텍스트를 거치지 않고 바로 DB에서 업데이트를 실행한다.
+			 */
+			int resultCnt = em.createQuery(query).executeUpdate();
+					
+			System.out.println("resultCnt : " + resultCnt);
+			// 영속성 컨텍스트를 변경해 주지 않았기 때문에 아래 로그 출력 결과는 최초 0 값이 찍힌다.
+			System.out.println("member1 age : " + member1.getAge());
+			System.out.println("member2 age : " + member2.getAge());
+			System.out.println("member3 age : " + member3.getAge());
+			
+			
+			
+			
+			/**
+			 * 벌크연산 후 영속성 컨텍스트를 사용하기 전에 초기화 해준다.
+			 */
+			
+			em.clear();
+			
+			Member findMember =  em.find(Member.class, member1.getId());
+			
+			System.out.println("findMember : " + findMember.getAge());
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+	}
+	
+	/**
+	 * 
+	 	* Named 쿼리 - 정적 쿼리
+			• 미리 정의해서 이름을 부여해두고 사용하는 JPQL
+			• 정적 쿼리
+			
+			• 어노테이션, XML에 정의
+				• 어노테이션
+				 	→ Entity 객체에 @NamedQuery 선언하여 사용함.
+					→ @NamedQuery(name = "Member.findByUsername", query = "select m from Member m where m.name = :name")
+			
+				• XML
+					→ persistence.xml에 설정 추가
+						<persistence-unit name="hello">
+							<mapping-file>META-INF/ormMember.xml</mapping-file>
+						</persistence-unit>
+					→ ormMember.xml 안에 SQL을 선언한다.	
+						
+			
+			• 애플리케이션 로딩 시점에 초기화(캐싱됨) 후 재사용
+				• 성능에 약간 메리트 있음.
+			• 애플리케이션 로딩 시점에 쿼리를 검증
+			
+			
+		* Named 쿼리 환경에 따른 설정
+			• XML이 항상 우선권을 가진다.
+			• 애플리케이션 운영 환경에 따라 다른 XML을 배포할 수 있다.
+	
+			
+	 */
+	public static void named쿼리() {
+		
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team1 = new Team();
+			team1.setName("팀A");
+			em.persist(team1);
+			
+			Team team2 = new Team();
+			team2.setName("팀B");
+			em.persist(team2);
+			
+			Member member1 = new Member();
+			member1.setName("회원1");
+			member1.changeTeam(team1);
+			em.persist(member1);
+			
+			Member member2 = new Member();
+			member2.setName("회원2");
+			member2.changeTeam(team2);
+			em.persist(member2);
+			
+			em.flush();
+			em.clear();
+
+			/**
+			 * 엔티티 객체에 @NamedQuery 로 선언한 name 명을 createNamedQuery 메소드의 첫번째 인자에 맵핑해 준다.
+			 */
+			List<Member> members4 = em.createNamedQuery("Member.findByUsername", Member.class)
+					.setParameter("name", "회원2")
+					.getResultList();
+			
+			for (Member m : members4) {
+				System.out.println("member : " + m);
+			}
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+		
+	}
+	
+	/**
+	 * 
+	 * 
+	 	* 엔티티 직접 사용 - 기본 키 값
+			• JPQL에서 엔티티를 직접 사용하면 SQL에서 해당 엔티티의 기본 키 값을 사용
+			
+			• [JPQL]
+					select count(m.id) from Member m 	// 엔티티의 아이디를 사용
+					select count(m) from Member m 		// 엔티티를 직접 사용
+			
+			• [SQL](JPQL 둘다 같은 다음 SQL 실행)
+					select count(m.id) as cnt from Member m
+
+		* 엔티티 직접 사용 - 기본 키 값
+			• select m from Member m where m = :member 		// 엔티티를 파라미터로 전달 
+			• select m from Member m where m.id = :memberId 	// 식별자를 직접 전달
+				→ 둘 다 실제 SQL는 동일하게 나간다.
+				실행 SQL : 	select m.* from Member m where m.id=?
+				
+		* 엔티티 직접 사용 - 외래 키 값
+
+	 */
+	public static void 엔티티직접사용() {
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			Team team1 = new Team();
+			team1.setName("팀A");
+			em.persist(team1);
+			
+			Team team2 = new Team();
+			team2.setName("팀B");
+			em.persist(team2);
+			
+			Member member1 = new Member();
+			member1.setName("회원1");
+			member1.changeTeam(team1);
+			em.persist(member1);
+			
+			Member member2 = new Member();
+			member2.setName("회원2");
+			member2.changeTeam(team2);
+			em.persist(member2);
+			
+			em.flush();
+			em.clear();
+
+			/**
+		 	* 엔티티 직접 사용 - 기본 키 값
+		 		• 실제 SQL
+		 			select count(m1_0.id) from Member m1_0
+			 */
+//			String query = "select count(m) from Member m";
+//			String query = "select count(m.id) from Member m";
+			
+//			Long memberCount = em.createQuery(query, Long.class).getSingleResult();
+//			
+//			System.out.println("memberCount : " + memberCount);
+			
+			
+			/**
+		 	* 엔티티 직접 사용 - 기본 키 값
+				• 엔티티를 파라미터로 전달
+			 */
+//			String query3 = "select m from Member m where m = :member";
+//			List<Member> members1 = em.createQuery(query3, Member.class)
+//				.setParameter("member", member1)
+//				.getResultList();
+//			
+//			for (Member m : members1) {
+//				System.out.println("member : " + m);
+//			}
+			
+			/**
+			 * 엔티티 직접 사용 - 기본 키 값
+				• 식별자를 직접 전달
+			 */
+//			String query4 = "select m from Member m where m.id = :memberId";
+//			List<Member> members2 = em.createQuery(query4, Member.class)
+//					.setParameter("memberId", member2.getId())
+//					.getResultList();
+//			
+//			for (Member m : members2) {
+//				System.out.println("member : " + m);
+//			}
+			
+			
+			/**
+			 * 엔티티 직접 사용 - 외래 키 값
+			 	• 엔티티를 파라미터로 전달
+			 */
+//			String query5 = "select m from Member m where m.team = :team";
+//			List<Member> members3 = em.createQuery(query5, Member.class)
+//					.setParameter("team", team1)
+//					.getResultList();
+//			
+//			for (Member m : members3) {
+//				System.out.println("member : " + m);
+//			}
+			
+			
+			/**
+			 * 엔티티 직접 사용 - 외래 키 값
+			 	• 식별자를 직접 전달
+			 */
+			String query6 = "select m from Member m where m.team.id = :teamId";
+			List<Member> members4 = em.createQuery(query6, Member.class)
+					.setParameter("teamId", team2.getId())
+					.getResultList();
+			
+			for (Member m : members4) {
+				System.out.println("member : " + m);
+			}
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
+		
+	}
+	
+	
+	/**
+	 * 
+	 * 
+	 	* TYPE
+			• 조회 대상을 특정 자식으로 한정
+			• 예) Item 중에 Book, Movie를 조회해라
+			• [JPQL]
+					select i from Item i
+					where type(i) IN (Book, Movie)
+			• [SQL]
+					select i from i
+					where i.DTYPE in (‘B’, ‘M’)
+
+		* TREAT(JPA 2.1)
+			• 자바의 타입 캐스팅과 유사
+			• 상속 구조에서 부모 타입을 특정 자식 타입으로 다룰 때 사용
+			• FROM, WHERE, SELECT(하이버네이트 지원) 사용
+
+
+	 */
+	public static void 다형성쿼리() {
+		/**
+		 * 애플리케이션 로딩 시점에 한번만 만든다. 데이터베이스당 1개만 실행한다.
+		 * persistence.xml의 persistence-unit name 과 맵핑된다.
+		 */
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("hello");
+		
+		// 트랜젝션이 일어나는 시점에 계속 만들어 준다.
+		EntityManager em = emf.createEntityManager();
+
+		// JPA에서는 데이터 변경 관련 모든 작업은 트랙젝션 안에서 실행되어야 한다. 
+		EntityTransaction tx = em.getTransaction();
+		// 트랜잭션 시작
+		tx.begin();
+		
+		try {
+			
+			
+			Book book = new Book();
+			book.setStore("StoreA");
+			book.setName("ItemA");
+			em.persist(book);
+			
+			Book book1 = new Book();
+			book1.setStore("StoreB");
+			book1.setName("ItemB");
+			em.persist(book1);
+			
+			
+			em.flush();
+			em.clear();
+
+			/**
+			 * Type
+			 */
+//			String query = "select i from Item i where type(i) IN (Book)";
+//			Item findItem =   em.createQuery(query, Item.class).getSingleResult();
+//			
+//			System.out.println("findItem : " + findItem);
+			
+			/**
+			 * Treat
+			 */
+			String query1 = "select i from Item i where treat(i as Book).store = 'StoreA' ";
+			Item findItem1 =   em.createQuery(query1, Item.class).getSingleResult();
+			
+			System.out.println("findItem : " + findItem1);
+			
+			
+			// 트랜잭션 종료
+			tx.commit();
+		} catch (Exception e) {
+			e.printStackTrace();
+			e.printStackTrace();
+			tx.rollback();
+		} finally {
+			// EntityManager가 DB connection을 물고 있기 때문에 꼭 닫아줘야 한다.
+			em.close();
+		}
+		
+		emf.close();
+		
 	}
 	
 	
